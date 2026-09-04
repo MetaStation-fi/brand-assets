@@ -19,7 +19,7 @@ reads white on a light page and near-black on a dark one. Two consequences:
 Run:  python scripts/build-metastation-brand.py
 """
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageChops, ImageDraw, ImageFont
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
@@ -43,11 +43,67 @@ GRAD_END = (178, 248, 159)    # lime, right end
 OUT.mkdir(parents=True, exist_ok=True)
 
 
+# THE authoritative source for the horizontal logo. This is the file the brand
+# owner edits; masters/metastation-logo-master.png in this repo is a copy of it.
+#
+# History worth keeping: the first pass of this script built from a copy taken
+# out of the docs repo's git history, which turned out to be an older, WASHED-OUT
+# revision of the gradient — the real artwork is far more saturated. The two
+# differed by a mean of 26.6/255 across 52% of pixels, and the pale version
+# shipped to production before anyone noticed. Hence check_master_drift(): a
+# stale master is not visible by eye at navbar size, only by measurement.
+#
+# Note the filename is log.png, not logo.png.
+APP_LOGO = Path(r"E:\Projects\Metastation.fi2\metastation-frontend\src\Img\log.png")
+
+
+def check_master_drift(master: Image.Image) -> None:
+    """Warn loudly if masters/ no longer matches the app's logo.png.
+
+    Compares the two as silhouettes and as flattened pixels at a common size.
+    Resampling between 4096 and 798 wide leaves a mean difference of roughly
+    2-3/255 with no structural change; an actual redraw shows up as ghosted or
+    doubled letterforms and a much larger mean. The threshold sits between.
+    """
+    if not APP_LOGO.exists():
+        print(f"  (drift check skipped: {APP_LOGO} not found)")
+        return
+    app = Image.open(APP_LOGO).convert("RGBA")
+
+    ar_m, ar_a = master.size[0] / master.size[1], app.size[0] / app.size[1]
+    if abs(ar_m - ar_a) > 0.01:
+        print(f"  !! ASPECT MISMATCH: master {ar_m:.4f} vs app logo {ar_a:.4f}")
+        print(f"  !! The artwork has been reshaped. Refresh {MASTER.name} before shipping.")
+        return
+
+    N = (798, 290)
+
+    def flat(im):
+        c = Image.new("RGBA", im.size, (255, 255, 255, 255))
+        c.alpha_composite(im)
+        return c.convert("L").resize(N, Image.LANCZOS)
+
+    d = ImageChops.difference(flat(master), flat(app))
+    px = list(d.getdata())
+    mean = sum(px) / len(px)
+    heavy = sum(1 for v in px if v > 32) / len(px)
+
+    if mean > 8 or heavy > 0.05:
+        print(f"  !! MASTER DRIFT: mean diff {mean:.2f}/255, {100*heavy:.2f}% of pixels differ heavily.")
+        print(f"  !! {APP_LOGO.name} looks like DIFFERENT artwork, not just a different resolution.")
+        print(f"  !! Refresh {MASTER} from the current source before shipping, or the site")
+        print(f"  !! will keep serving the old logo.")
+    else:
+        print(f"  drift check ok: mean diff {mean:.2f}/255, {100*heavy:.2f}% heavy "
+              f"— consistent with resampling, same artwork")
+
+
 def load_master() -> Image.Image:
     if not MASTER.exists():
         raise SystemExit(f"master not found: {MASTER}")
     im = Image.open(MASTER).convert("RGBA")
     print(f"master: {im.size[0]}x{im.size[1]}  aspect {im.size[0]/im.size[1]:.4f}")
+    check_master_drift(im)
     return im
 
 
