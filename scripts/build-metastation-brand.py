@@ -24,7 +24,15 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 OUT = REPO / "brand"
-MASTER = Path(r"E:\Projects\Metastation.fi2\MetaStation-Docs-and-Blogs\static\img\metastation-logo.png")
+# Masters live in this repo so the set is reproducible without depending on a
+# checkout of the app or the docs site sitting at a particular path.
+# metastation-logo-master.png is 4096x1488 — the same artwork as the 798x290
+# copy in metastation-frontend/public/logo.png, at the resolution that lets the
+# large variants downsample instead of upscale.
+MASTER = REPO / "masters" / "metastation-logo-master.png"
+# The square mark (stacked META / STATION), confirmed correct by the brand
+# owner — resized here, never redrawn.
+SQUARE = REPO / "masters" / "metastation-square-master.webp"
 
 # Brand colours, taken from the site's own config (announcementBar) and the
 # gradient endpoints sampled off the master.
@@ -125,6 +133,39 @@ def build_wordmark_white(logo: Image.Image, height: int = 96):
     print(f"  {path.name:36s} {w}x{height:<5d} {path.stat().st_size/1024:7.1f} KB")
 
 
+def build_icon_and_avatar():
+    """The square mark (stacked META / STATION). Used for blog author avatars,
+    cards and slots. Its wordmark is a knockout too, so it is emitted twice:
+
+      metastation-icon-*   transparent, for surfaces that supply their own
+                           background and want the mark to adapt
+      metastation-avatar-* composited onto a solid navy plate, for circular
+                           avatars — otherwise the glyphs flip colour between
+                           light and dark theme and the crop looks accidental
+    """
+    if not SQUARE.exists():
+        print(f"  skip: square master not found at {SQUARE}")
+        return
+    sq = Image.open(SQUARE).convert("RGBA")
+    print(f"  square master: {sq.size[0]}x{sq.size[1]}")
+
+    for h in (96, 192):
+        out = sq.resize((h, h), Image.LANCZOS)
+        p = OUT / f"metastation-icon-{h}.webp"
+        out.save(p, "WEBP", quality=90, method=6)
+        print(f"  {p.name:36s} {h}x{h:<6d} {p.stat().st_size/1024:7.1f} KB")
+
+    for h in (96, 192):
+        plate = Image.new("RGBA", (h, h), INK + (255,))
+        # Inset slightly so the mark is not flush to the circle's crop edge.
+        inset = round(h * 0.10)
+        mark = sq.resize((h - 2 * inset, h - 2 * inset), Image.LANCZOS)
+        plate.alpha_composite(mark, (inset, inset))
+        p = OUT / f"metastation-avatar-{h}.webp"
+        plate.convert("RGB").save(p, "WEBP", quality=90, method=6)
+        print(f"  {p.name:36s} {h}x{h:<6d} {p.stat().st_size/1024:7.1f} KB")
+
+
 def main():
     logo = load_master()
 
@@ -139,6 +180,9 @@ def main():
 
     print("\nwordmark:")
     build_wordmark_white(logo)
+
+    print("\nsquare mark:")
+    build_icon_and_avatar()
 
 
 if __name__ == "__main__":
