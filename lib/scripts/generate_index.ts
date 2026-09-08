@@ -55,12 +55,12 @@ if (!parsed.success) {
 
 const record = parsed.data;
 
-// Translate → { id: { icon: "<TICKER>.png" } }, fully stable
+// Translate → { id: { icon: "<TICKER>.webp" } }, fully stable
 const out: Index = {};
 for (const ticker of Object.keys(record).sort()) {
   const ids = Array.from(new Set(record[ticker].ids.map((s) => s.trim()).filter(Boolean))).sort();
   for (const id of ids) {
-    out[id] = { icon: `${ticker}.png` };
+    out[id] = { icon: `${ticker}.webp` };
   }
 }
 
