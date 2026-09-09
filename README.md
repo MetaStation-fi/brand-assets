@@ -30,9 +30,38 @@ Four kinds of file are deliberately **not** WebP:
 | `brand/metastation-social-card.png` | Open Graph / Twitter card — several social crawlers and link unfurlers still do not decode WebP |
 | `masters/*` | Source masters, not served |
 
-Consumers pin a tag, so **an extension change is a breaking change**: the
-consumer's tag and its extension must move together. `icons-v1` is the last
-all-PNG cut; `icons-v2` is the first WebP one.
+`icons-v1` is the last all-PNG cut; `icons-v2` is the first WebP one.
+
+## How icons reach production
+
+The app resolves every icon through
+`cdn.jsdelivr.net/gh/MetaStation-fi/brand-assets@main` — a **floating ref**, not
+a tag (changed 2026-09-10; the tag pin meant every batch of artwork needed a tag
+plus a frontend deploy, and ~1000 committed icons sat invisible behind
+`icons-v2` while live markets drew letter avatars).
+
+So publishing an icon is:
+
+```bash
+node scripts/verify-icons.js     # the gate the tag bump used to be
+git add -A && git commit -m 'icons: ...' && git push origin main
+node scripts/purge-cdn.js        # drop the edge cache for what changed
+```
+
+Notes on the caching, measured against jsDelivr rather than assumed:
+
+- A missing file returns `no-cache, no-store`, so a **new** icon is never masked
+  by a cached 404 — it appears as soon as the edge re-resolves `main`.
+- A branch ref is edge-cached for 12h (`s-maxage=43200`); `purge-cdn.js` makes a
+  push visible immediately.
+- A file already served is browser-cached for 7 days (`max-age=604800`), which no
+  purge can reach — so **replace** artwork under a new filename rather than
+  overwriting, or accept the week.
+
+Tags are still cut occasionally as rollback points, but nothing wires to them.
+To roll production back, point `ICON_ORIGIN` in
+`metastation-frontend/src/config/tokenIcons.js` at a tag; that is the only time
+that line should change.
 
 ## How to upload a new icon
 
