@@ -31,8 +31,8 @@
   "scripts": {
     "build-storybook:native": "storybook build -c .storybook-rn",
     "build-storybook:react": "storybook build",
-    "build": "tsdown",
-    "dev": "tsdown --watch",
+    "build": "node init && tsdown",
+    "dev": "node init && tsdown --watch",
     "check:mapping": "node scripts/checkMapping.js",
     "compress": "bash ../compress/compress.sh",
     "generate:index:help": "echo \"Generates the index.json file from the '_record.json' file\"",
